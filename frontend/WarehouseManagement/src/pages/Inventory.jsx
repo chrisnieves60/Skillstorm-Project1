@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import Pagination from "../components/Pagination";
+import InventoryFilters from "../components/inventory/InventoryFilters";
+import InventoryFormCard from "../components/inventory/InventoryFormCard";
+import InventoryTable from "../components/inventory/InventoryTable";
+import TransferModal from "../components/inventory/TransferModal";
 
 const emptyItem = {
   name: "",
@@ -9,6 +14,15 @@ const emptyItem = {
   warehouseId: "",
 };
 
+const emptyTransfer = {
+  open: false,
+  fromWarehouseId: 0,
+  toWarehouseId: 0,
+  inventoryId: 0,
+  quantity: 0,
+  storageLocation: "",
+};
+
 const apiBase = "http://localhost:8080";
 const PAGE_SIZE = 10;
 
@@ -17,14 +31,19 @@ const toClientItem = (item) => ({
   warehouseId:
     item.warehouseId ??
     item.warehouse_id ??
-    (typeof item.warehouse === "object" ? item.warehouse?.id : item.warehouse) ??
+    (typeof item.warehouse === "object"
+      ? item.warehouse?.id
+      : item.warehouse) ??
     "",
 });
 
 const toApiPayload = (item) => {
   const { warehouseId, warehouse_id, warehouse, ...rest } = item;
   const resolvedWarehouseId =
-    warehouseId ?? warehouse_id ?? (typeof warehouse === "object" ? warehouse?.id : warehouse) ?? "";
+    warehouseId ??
+    warehouse_id ??
+    (typeof warehouse === "object" ? warehouse?.id : warehouse) ??
+    "";
   const payload = {
     ...rest,
     warehouseId: resolvedWarehouseId,
@@ -48,12 +67,7 @@ export default function Inventory() {
   const [form, setForm] = useState(emptyItem);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(emptyItem);
-  const [transfer, setTransfer] = useState({
-    open: false,
-    id: null,
-    quantity: 0,
-    destination: "",
-  });
+  const [transfer, setTransfer] = useState(emptyTransfer);
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -79,23 +93,14 @@ export default function Inventory() {
 
     fetchWarehouses();
     fetchItems();
-    console.log(items);
   }, []);
 
-  const categories = useMemo(
-    () => Array.from(new Set(items.map((i) => i.category).filter(Boolean))),
-    [items]
-  );
-
   const filteredItems = useMemo(() => {
+    const search = filters.search.toLowerCase();
     return items.filter((item) => {
       const matchesSearch =
-        item.name.toLowerCase().includes(filters.search.toLowerCase()) ||
-        item.sku
-          .toLowerCase()
-          .includes(filters.search.toLowerCase())
-          .toLowerCase()
-          .includes(filters.search.toLowerCase());
+        item.name.toLowerCase().includes(search) ||
+        item.sku.toLowerCase().includes(search);
 
       const matchesWarehouse =
         filters.warehouseId === "all" ||
@@ -222,11 +227,13 @@ export default function Inventory() {
   };
 
   const openTransfer = (item) => {
+    const qty = Math.min(50, Number(item.quantity) || 0);
     setTransfer({
       open: true,
       id: item.id,
-      quantity: Math.min(50, item.quantity),
-      destination: warehouses.find((w) => w.id !== item.warehouseId)?.id || "",
+      quantity: qty,
+      destination:
+        warehouses.find((w) => w.id !== item.warehouseId)?.id || "",
     });
   };
 
@@ -265,12 +272,15 @@ export default function Inventory() {
 
     const pushTransfer = async () => {
       try {
-        await fetch(`${apiBase}/inventory/transfer`, {
+        const sourceWarehouseId = items.find((i) => i.id === transfer.id)
+          ?.warehouseId;
+        await fetch(`${apiBase}/warehouses/transfer`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            id: transfer.id,
-            destination: transfer.destination,
+            inventoryId: transfer.id,
+            fromWarehouseId: sourceWarehouseId,
+            toWarehouseId: transfer.destination,
             quantity: qtyToMove,
           }),
         });
@@ -283,7 +293,7 @@ export default function Inventory() {
     };
 
     pushTransfer();
-    setTransfer({ open: false, id: null, quantity: 0, destination: "" });
+    setTransfer(emptyTransfer);
   };
 
   return (
@@ -298,192 +308,36 @@ export default function Inventory() {
             warehouse.
           </p>
         </div>
-        <div className="filters compact">
-          <input
-            placeholder="Search name or SKU"
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-          />
-          <select
-            value={filters.warehouseId}
-            onChange={(e) =>
-              setFilters({ ...filters, warehouseId: e.target.value })
-            }
-          >
-            <option value="all">All warehouses</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <InventoryFilters
+          filters={filters}
+          warehouses={warehouses}
+          onChange={setFilters}
+        />
       </section>
 
       <section className="grid two-columns">
-        <form className="panel form-card" onSubmit={handleAdd}>
-          <p className="eyebrow">Create</p>
-          <h3>Add inventory item</h3>
-          <div className="form-grid">
-            <label>
-              Name
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Product name"
-                required
-              />
-            </label>
-            <label>
-              SKU
-              <input
-                value={form.sku}
-                onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                placeholder="Unique code"
-                required
-              />
-            </label>
-            <label>
-              Quantity
-              <input
-                type="number"
-                min="0"
-                value={form.quantity}
-                onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-              />
-            </label>
-            <label>
-              Storage location
-              <input
-                value={form.storageLocation}
-                onChange={(e) =>
-                  setForm({ ...form, storageLocation: e.target.value })
-                }
-                placeholder="Aisle / bay"
-              />
-            </label>
-            <label>
-              Warehouse
-              <select
-                value={form.warehouseId}
-                onChange={(e) =>
-                  setForm({ ...form, warehouseId: e.target.value })
-                }
-                required
-              >
-                <option value="">Select warehouse</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="full">
-              Description
-              <textarea
-                value={form.description}
-                onChange={(e) =>
-                  setForm({ ...form, description: e.target.value })
-                }
-                placeholder="What makes this item special?"
-                rows={3}
-              />
-            </label>
-          </div>
-          <button type="submit" className="btn">
-            Add item
-          </button>
-        </form>
+        <InventoryFormCard
+          eyebrow="Create"
+          title="Add inventory item"
+          form={form}
+          warehouses={warehouses}
+          onChange={setForm}
+          onSubmit={handleAdd}
+          submitLabel="Add item"
+        />
 
         {editingId && (
-          <form className="panel form-card accent" onSubmit={handleUpdate}>
-            <p className="eyebrow">Edit</p>
-            <h3>Update item</h3>
-            <div className="form-grid">
-              <label>
-                Name
-                <input
-                  value={editForm.name}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, name: e.target.value })
-                  }
-                  required
-                />
-              </label>
-              <label>
-                SKU
-                <input
-                  value={editForm.sku}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, sku: e.target.value })
-                  }
-                  required
-                />
-              </label>
-              <label>
-                Quantity
-                <input
-                  type="number"
-                  min="0"
-                  value={editForm.quantity}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, quantity: e.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Storage location
-                <input
-                  value={editForm.storageLocation}
-                  onChange={(e) =>
-                    setEditForm({
-                      ...editForm,
-                      storageLocation: e.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label>
-                Warehouse
-                <select
-                  value={editForm.warehouseId}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, warehouseId: e.target.value })
-                  }
-                  required
-                >
-                  {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="full">
-                Description
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, description: e.target.value })
-                  }
-                  rows={3}
-                />
-              </label>
-            </div>
-            <div className="actions">
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => setEditingId(null)}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn">
-                Save item
-              </button>
-            </div>
-          </form>
+          <InventoryFormCard
+            eyebrow="Edit"
+            title="Update item"
+            form={editForm}
+            warehouses={warehouses}
+            onChange={setEditForm}
+            onSubmit={handleUpdate}
+            submitLabel="Save item"
+            accent
+            onCancel={() => setEditingId(null)}
+          />
         )}
       </section>
 
@@ -495,148 +349,29 @@ export default function Inventory() {
           </div>
         </div>
 
-        <div className="table">
-          <div className="table-head">
-            <span>Item</span>
-            <span>SKU</span>
-            <span>Qty</span>
-            <span>Warehouse</span>
-            <span>Location</span>
-            <span>Actions</span>
-          </div>
-          {paginatedItems.map((item) => {
-            const warehouse = warehouses.find((w) => w.id === item.warehouseId);
-            return (
-              <div key={item.id} className="table-row">
-                <span>
-                  <strong>{item.name}</strong>
-                </span>
-                <span>{item.sku}</span>
-                <span>{item.quantity.toLocaleString()}</span>
-                <span>{warehouse?.name ?? "Unknown"}</span>
-                <span>{item.storageLocation || "—"}</span>
-                <span className="actions">
-                  <button className="link" onClick={() => startEdit(item)}>
-                    Edit
-                  </button>
-                  <button className="link" onClick={() => openTransfer(item)}>
-                    Transfer
-                  </button>
-                  <button
-                    className="link danger"
-                    onClick={() => handleDelete(item)}
-                  >
-                    Delete
-                  </button>
-                </span>
-              </div>
-            );
-          })}
-          {filteredItems.length === 0 && (
-            <div className="empty">
-              <p>No items match the filters. Try clearing your search.</p>
-            </div>
-          )}
-        </div>
+        <InventoryTable
+          items={paginatedItems}
+          warehouses={warehouses}
+          onEdit={startEdit}
+          onTransfer={openTransfer}
+          onDelete={handleDelete}
+        />
         {filteredItems.length > 0 && (
-          <div className="panel-footer pagination">
-            <div className="muted">
-              Page {page} of {pageCount}
-            </div>
-            <div className="actions">
-              <button
-                type="button"
-                className="btn ghost"
-                disabled={page === 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-              >
-                Previous
-              </button>
-              <div className="pager">
-                {Array.from({ length: pageCount }, (_, idx) => idx + 1).map(
-                  (num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      className={`btn ghost ${num === page ? "active" : ""}`}
-                      onClick={() => setPage(num)}
-                    >
-                      {num}
-                    </button>
-                  )
-                )}
-              </div>
-              <button
-                type="button"
-                className="btn ghost"
-                disabled={page === pageCount}
-                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          <Pagination
+            page={page}
+            pageCount={pageCount}
+            onChange={(num) => setPage(num)}
+          />
         )}
       </section>
 
-      {transfer.open && (
-        <div className="modal">
-          <div className="modal-body">
-            <div className="panel">
-              <div className="panel-header">
-                <h3>Transfer inventory</h3>
-                <button
-                  className="link"
-                  onClick={() => setTransfer({ open: false, id: null })}
-                >
-                  Close
-                </button>
-              </div>
-              <form className="form-grid" onSubmit={submitTransfer}>
-                <label>
-                  Destination warehouse
-                  <select
-                    value={transfer.destination}
-                    onChange={(e) =>
-                      setTransfer({ ...transfer, destination: e.target.value })
-                    }
-                  >
-                    <option value="">Select</option>
-                    {warehouses.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Quantity to move
-                  <input
-                    type="number"
-                    min="1"
-                    value={transfer.quantity}
-                    onChange={(e) =>
-                      setTransfer({ ...transfer, quantity: e.target.value })
-                    }
-                  />
-                </label>
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    onClick={() => setTransfer({ open: false, id: null })}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn">
-                    Transfer
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      <TransferModal
+        transfer={transfer}
+        warehouses={warehouses}
+        onClose={() => setTransfer(emptyTransfer)}
+        onChange={setTransfer}
+        onSubmit={submitTransfer}
+      />
     </div>
   );
 }

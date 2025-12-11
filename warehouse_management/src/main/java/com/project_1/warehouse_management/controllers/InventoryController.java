@@ -49,7 +49,10 @@ public class InventoryController {
     @PostMapping
     public ResponseEntity<Inventory> createInventory(@RequestBody Inventory inventory ) { //http response has list of entities 
         try {           
-            return new ResponseEntity<>(inventoryService.createInventory(inventory), HttpStatus.OK); 
+            int warehouseId = inventory.getWarehouseId(); 
+            Inventory created = inventoryService.createInventory(inventory, warehouseId);
+
+            return new ResponseEntity<>(created, HttpStatus.OK); 
         } catch (Exception e) {
             // TODO: handle exception
             return ResponseEntity.internalServerError().header("message", "something went wrong when creating an inventory entry ").build(); 

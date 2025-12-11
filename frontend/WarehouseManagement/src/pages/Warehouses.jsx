@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import CapacityDial from "../components/CapacityDial";
+import WarehouseFormCard from "../components/warehouses/WarehouseFormCard";
+import WarehouseHero from "../components/warehouses/WarehouseHero";
+import WarehouseTable from "../components/warehouses/WarehouseTable";
 
 const emptyForm = {
   name: "",
@@ -156,160 +158,30 @@ export default function Warehouses() {
 
   return (
     <div className="stack">
-      <section className="panel hero tight">
-        <div>
-          <p className="eyebrow">Warehouse Network</p>
-          <h2>Manage sites, capacities, and readiness</h2>
-          <p className="muted">
-            Add new nodes, adjust caps when floor plans change, and keep
-            locations tidy. Capacity rules prevent overstocking.
-          </p>
-        </div>
-        <div className="hero-meter">
-          <div className="meter small">
-            <div
-              className="meter-fill"
-              style={{
-                width: `${Math.min(
-                  (warehouses.reduce((sum, w) => sum + (w.capacity ?? 0), 0) /
-                    Math.max(
-                      warehouses.reduce(
-                        (sum, w) =>
-                          sum + (w.maximumCapacity ?? w.capacity ?? 0),
-                        0
-                      ) || 1,
-                      1
-                    )) *
-                    100,
-                  100
-                ).toFixed(1)}%`,
-              }}
-            />
-          </div>
-          <p className="muted">
-            Total used:{" "}
-            <strong>
-              {warehouses
-                .reduce((sum, w) => sum + (w.capacity ?? 0), 0)
-                .toLocaleString()}{" "}
-              /
-              {warehouses
-                .reduce(
-                  (sum, w) => sum + (w.maximumCapacity ?? w.capacity ?? 0),
-                  0
-                )
-                .toLocaleString()}{" "}
-              units
-            </strong>
-          </p>
-        </div>
-      </section>
+      <WarehouseHero warehouses={warehouses} />
 
       <section className="grid two-columns">
-        <form className="panel form-card" onSubmit={handleAdd}>
-          <p className="eyebrow">Create</p>
-          <h3>Add a new warehouse</h3>
-          <div className="form-grid">
-            <label>
-              Name
-              <input
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="E.g., Northridge Fulfillment"
-                required
-              />
-            </label>
-            <label>
-              Location
-              <input
-                value={form.location}
-                onChange={(e) => setForm({ ...form, location: e.target.value })}
-                placeholder="City, State"
-                required
-              />
-            </label>
-            <label>
-              Maximum capacity
-              <input
-                type="number"
-                min="0"
-                value={form.maximumCapacity}
-                onChange={(e) =>
-                  setForm({ ...form, maximumCapacity: e.target.value })
-                }
-                placeholder="Max units"
-              />
-            </label>
-          </div>
-          <button type="submit" className="btn">
-            Add warehouse
-          </button>
-        </form>
+        <WarehouseFormCard
+          eyebrow="Create"
+          title="Add a new warehouse"
+          form={form}
+          onChange={setForm}
+          onSubmit={handleAdd}
+          submitLabel="Add warehouse"
+        />
 
         {editingId && (
-          <form className="panel form-card accent" onSubmit={handleUpdate}>
-            <p className="eyebrow">Edit</p>
-            <h3>Update warehouse</h3>
-            <div className="form-grid">
-              <label>
-                Name
-                <input
-                  value={editForm.name}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, name: e.target.value })
-                  }
-                  required
-                />
-              </label>
-              <label>
-                Location
-                <input
-                  value={editForm.location}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, location: e.target.value })
-                  }
-                  required
-                />
-              </label>
-              <label>
-                Maximum capacity
-                <input
-                  type="number"
-                  min="0"
-                  value={editForm.maximumCapacity}
-                  onChange={(e) =>
-                    setEditForm({
-                      ...editForm,
-                      maximumCapacity: e.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label>
-                Current used
-                <input
-                  type="number"
-                  min="0"
-                  value={editForm.capacity}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, capacity: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <div className="actions">
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => setEditingId(null)}
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn">
-                Save changes
-              </button>
-            </div>
-          </form>
+          <WarehouseFormCard
+            eyebrow="Edit"
+            title="Update warehouse"
+            form={editForm}
+            onChange={setEditForm}
+            onSubmit={handleUpdate}
+            submitLabel="Save changes"
+            accent
+            onCancel={() => setEditingId(null)}
+            includeCapacity
+          />
         )}
       </section>
 
@@ -328,57 +200,11 @@ export default function Warehouses() {
           </div>
         </div>
 
-        <div className="table warehouse-table">
-          <div className="table-head">
-            <span>Name</span>
-            <span>Location</span>
-            <span>Capacity</span>
-            <span>Utilization</span>
-            <span>Used</span>
-            <span>Actions</span>
-          </div>
-          {filteredWarehouses.map((w) => {
-            const used = Number(w.capacity ?? 0);
-            const max = Number(w.maximumCapacity ?? w.capacity ?? 0);
-            const remaining = Math.max(max - used, 0);
-            const percent = max > 0 ? Math.round((used / max) * 100) : 0;
-            return (
-              <div key={w.id} className="table-row">
-                <span>
-                  <strong>{w.name}</strong>
-                </span>
-                <span>{w.location}</span>
-                <span>
-                  {used.toLocaleString()} used / {max.toLocaleString()} max
-                </span>
-                <span>
-                  <CapacityDial
-                    used={used}
-                    max={max || 1}
-                    label={`${percent}%`}
-                  />
-                </span>
-                <span>{remaining.toLocaleString()} left</span>
-                <span className="actions">
-                  <button className="link" onClick={() => startEdit(w)}>
-                    Edit
-                  </button>
-                  <button
-                    className="link danger"
-                    onClick={() => handleDelete(w)}
-                  >
-                    Delete
-                  </button>
-                </span>
-              </div>
-            );
-          })}
-          {filteredWarehouses.length === 0 && (
-            <div className="empty">
-              <p>No warehouses match your search.</p>
-            </div>
-          )}
-        </div>
+        <WarehouseTable
+          warehouses={filteredWarehouses}
+          onEdit={startEdit}
+          onDelete={handleDelete}
+        />
       </section>
     </div>
   );

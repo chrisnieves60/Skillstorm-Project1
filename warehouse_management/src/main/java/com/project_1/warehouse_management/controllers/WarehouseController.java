@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
+import com.project_1.warehouse_management.dto.TransferRequest;
+import com.project_1.warehouse_management.models.Inventory;
 import com.project_1.warehouse_management.models.Warehouse;
 import com.project_1.warehouse_management.repositories.WarehouseRepository;
 import com.project_1.warehouse_management.services.WarehouseService;
@@ -81,6 +83,16 @@ public class WarehouseController {
             return ResponseEntity.ok(updated);  
         } catch (Exception e) {
             return ResponseEntity.internalServerError().header("error", "Error editing warehouse").build(); 
+        }
+    }
+    @PostMapping("/transfer") 
+    public ResponseEntity<?> transferInventory(@RequestBody TransferRequest request) {
+        try {
+            warehouseService.transferInventory(request.fromWarehouseId, request.toWarehouseId, request.inventoryId, request.quantity, request.storageLocation);
+            return ResponseEntity.ok("Transfer complete");
+        } catch (Exception e) {
+            // TODO: handle exception
+            return ResponseEntity.internalServerError().header("error", "Error transferring warehouse items").build(); 
         }
     }
 }

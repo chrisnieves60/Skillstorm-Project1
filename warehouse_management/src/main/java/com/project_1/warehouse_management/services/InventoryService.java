@@ -13,9 +13,11 @@ import com.project_1.warehouse_management.models.Warehouse;
 public class InventoryService {
 
     private final InventoryRepository inventoryRepository;  //Instantiate repositroy,
+    private final WarehouseRepository warehouseRepository;  //Instantiate repositroy,
 
     //constructor injection for beans 
-    public InventoryService(InventoryRepository inventoryRepository) {
+    public InventoryService(InventoryRepository inventoryRepository, WarehouseRepository warehouseRepository) {
+        this.warehouseRepository = warehouseRepository; 
         this.inventoryRepository = inventoryRepository; 
     }
 
@@ -34,7 +36,25 @@ public class InventoryService {
     public void deleteInventoryById(int id) { 
         inventoryRepository.deleteById(id);
     }
-    public Inventory createInventory(Inventory inventory) {
+    public Inventory createInventory(Inventory inventory, int warehouse_id) {
+        //BUSINESS LOGIC FOR CHECKING IF WAREHOUSE IS AT CAPACITY 
+        Warehouse warehouse = warehouseRepository.findById(warehouse_id).orElseThrow(() -> new RuntimeException("Inventory not found")); 
+
+        List<Inventory> inventoryItems = warehouse.getInventory(); //get inventory items as list from warehouse object 
+        
+        int capacity = 0; 
+        
+        for (Inventory item : inventoryItems) {
+            int quantity = item.getQuantity(); 
+            capacity+=quantity; 
+        }
+
+        if (capacity + inventory.getQuantity() >= warehouse.getMaximumCapacity()) {
+            throw new RuntimeException("Warehouse is at or over capacity");
+
+        }
+        inventory.setWarehouse(warehouse);
+
         return inventoryRepository.save(inventory); 
     }
     public Inventory updateInventory(int id, Inventory newData) {
