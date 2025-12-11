@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/warehouse_management
+    username: christopher
+    password: 28376563fd
+
+  output:
+    ansi:
+      enabled: always
+server:
+  port: 8080
+logging:
+  level:
+    com:
+      skillstorm: debug #Sets logging level for entire package
