@@ -34,3 +34,4 @@ A small warehouse + inventory tracker built with a Spring Boot backend and a Rea
 ## Notes and rough edges
 
 - Capacity is calculated from stored quantities in warehouses table
+- Search/filtering is done in frontend, not optimal but functional
