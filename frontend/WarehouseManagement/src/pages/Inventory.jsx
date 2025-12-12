@@ -104,9 +104,36 @@ export default function Inventory({
     e.preventDefault();
     if (!form.name.trim() || !form.sku.trim() || !form.warehouseId) return;
 
+    const selectedWarehouse = warehouses.find(
+      (w) => `${w.id}` === `${form.warehouseId}`
+    );
+    const newQuantity = Number(form.quantity) || 0;
+
+    if (selectedWarehouse) {
+      const maxCapacity =
+        Number(
+          selectedWarehouse.maximumCapacity ?? selectedWarehouse.capacity ?? 0
+        ) || 0;
+      const currentUsed = items.reduce(
+        (sum, item) =>
+          `${item.warehouseId}` === `${form.warehouseId}`
+            ? sum + (Number(item.quantity) || 0)
+            : sum,
+        0
+      );
+
+      if (maxCapacity > 0 && currentUsed + newQuantity > maxCapacity) {
+        showToast(
+          "Cannot add item: quantity exceeds warehouse capacity",
+          "error"
+        );
+        return;
+      }
+    }
+
     const payload = toApiPayload({
       ...form,
-      quantity: Number(form.quantity) || 0,
+      quantity: newQuantity,
     });
 
     const createItem = async () => {
@@ -210,6 +237,33 @@ export default function Inventory({
     if (!item || !destination || destination === item.warehouseId) return;
     const qty = Math.max(Number(quantity) || 0, 0);
     if (qty <= 0) return;
+
+    const destinationWarehouse = warehouses.find(
+      (w) => `${w.id}` === `${destination}`
+    );
+    if (destinationWarehouse) {
+      const maxCapacity =
+        Number(
+          destinationWarehouse.maximumCapacity ??
+            destinationWarehouse.capacity ??
+            0
+        ) || 0;
+      const destinationUsed = items.reduce(
+        (sum, inv) =>
+          `${inv.warehouseId}` === `${destination}`
+            ? sum + (Number(inv.quantity) || 0)
+            : sum,
+        0
+      );
+
+      if (maxCapacity > 0 && destinationUsed + qty > maxCapacity) {
+        showToast(
+          "Cannot transfer: quantity exceeds destination capacity",
+          "error"
+        );
+        return;
+      }
+    }
 
     try {
       await transferInventory({

@@ -79,6 +79,33 @@ export default function WarehouseDetails({
     const qty = Math.max(Number(quantity) || 0, 0);
     if (qty <= 0) return;
 
+    const destinationWarehouse = warehouses.find(
+      (w) => `${w.id}` === `${destination}`
+    );
+    if (destinationWarehouse) {
+      const maxCapacity =
+        Number(
+          destinationWarehouse.maximumCapacity ??
+            destinationWarehouse.capacity ??
+            0
+        ) || 0;
+      const destinationUsed = itemsState.reduce(
+        (sum, inv) =>
+          `${inv.warehouseId}` === `${destination}`
+            ? sum + (Number(inv.quantity) || 0)
+            : sum,
+        0
+      );
+
+      if (maxCapacity > 0 && destinationUsed + qty > maxCapacity) {
+        showToast(
+          "Cannot transfer: quantity exceeds destination capacity",
+          "error"
+        );
+        return;
+      }
+    }
+
     try {
       await transferInventory({
         inventoryId: item.id,
