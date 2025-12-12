@@ -6,7 +6,6 @@ export default function Layout({ children, alerts = [] }) {
       <div className="ambient" />
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">IMS</div>
           <div>
             <p className="eyebrow">Operations Dashboard</p>
             <h1>Warehouse Manager</h1>
