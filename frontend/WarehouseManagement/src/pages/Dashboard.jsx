@@ -1,72 +1,51 @@
 const formatNumber = (value) => value.toLocaleString();
 
-export default function Dashboard({ warehouses = [] }) {
-  const totalCapacity = warehouses.reduce((sum, w) => sum + w.capacity, 0);
-  const totalUsed = warehouses.reduce((sum, w) => sum + w.used, 0);
-  // const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-  const utilization = totalCapacity
-    ? Math.round((totalUsed / totalCapacity) * 100)
-    : 0;
+export default function Dashboard({ warehouses }) {
+  //compute utilization for ALL warehouses
+  const totalUsed = warehouses.reduce((sum, w) => sum + (w.capacity ?? 0), 0);
+  const totalMax = warehouses.reduce(
+    (sum, w) => sum + (w.maximumCapacity ?? w.capacity ?? 0),
+    0
+  );
 
-  // const recent = [...items]
-  //   .sort(
-  //     (a, b) =>
-  //       new Date(b.lastMoved || b.id).getTime() -
-  //       new Date(a.lastMoved || a.id).getTime()
-  //   )
-  //   .slice(0, 5);
+  const utilization =
+    totalMax > 0 ? Math.min((totalUsed / Math.max(totalMax, 1)) * 100, 100) : 0;
+
+  const watchlist = warehouses
+    .map((w) => {
+      const used = Number(w.capacity ?? 0);
+      const max = Number(w.maximumCapacity ?? w.capacity ?? 0);
+      const percent = max > 0 ? (used / max) * 100 : 0;
+      return { ...w, used, max, percent };
+    })
+    .filter((w) => w.max > 0 && w.percent >= 85)
+    .sort((a, b) => b.percent - a.percent);
 
   return (
     <div className="stack">
       <section className="panel hero">
         <div>
-          <p className="eyebrow">Command Center</p>
-          <h2>Multi-site inventory at a glance</h2>
-          <p className="muted">
-            Monitor utilization, capacity risks, and activity without touching
-            the backend. Use the tabs above to edit warehouses, items, and
-            transfers.
-          </p>
-          <div className="cta-row">
-            {/* <span className="pill pill-ghost">
-              {warehouses.length} sites · {totalItems} units tracked
-            </span> */}
-          </div>
+          <p className="eyebrow">Operations Center</p>
+          <h2>Multi-site Overview</h2>
+          <p className="muted"></p>
+          <div className="cta-row"></div>
         </div>
         <div className="hero-meter">
-          <div className="meter">
+          <div className="meter small">
             <div
               className="meter-fill"
-              style={{ width: `${Math.min(utilization, 100)}%` }}
-              aria-label={`Overall utilization ${utilization}%`}
+              style={{
+                width: `${utilization.toFixed(1)}%`,
+              }}
             />
           </div>
           <p className="muted">
-            Overall utilization <strong>{utilization}%</strong> of{" "}
-            <strong>{formatNumber(totalCapacity)}</strong> unit capacity
+            Total used:{" "}
+            <strong>
+              {totalUsed.toLocaleString()} /{totalMax.toLocaleString()} units
+            </strong>
           </p>
         </div>
-      </section>
-
-      <section className="grid stats">
-        <StatCard
-          title="Warehouses online"
-          value={warehouses.length}
-          hint="Active, ready for inbound"
-        />
-        {/* <StatCard
-          title="Units in motion"
-          value={formatNumber(totalItems)}
-          hint="Count of all stored items"
-        /> */}
-        <StatCard
-          title="Average headroom"
-          value={`${Math.max(
-            0,
-            totalCapacity - totalUsed
-          ).toLocaleString()} units`}
-          hint="Remaining capacity across all sites"
-        />
       </section>
 
       <section className="panel">
@@ -80,6 +59,38 @@ export default function Dashboard({ warehouses = [] }) {
             </p>
           </div>
         </div>
+        {watchlist.length === 0 ? (
+          <div className="empty">
+            <p>All sites are under 85% utilization.</p>
+          </div>
+        ) : (
+          <div className="table">
+            <div className="table-head">
+              <span>Warehouse</span>
+              <span>Capacity</span>
+              <span>Utilization</span>
+            </div>
+            {watchlist.map((w) => (
+              <div key={w.id} className="table-row">
+                <span>
+                  <strong>{w.name}</strong>
+                  <div className="muted">{w.location || "—"}</div>
+                </span>
+                <span>
+                  {w.used.toLocaleString()} / {w.max.toLocaleString()}
+                </span>
+                <span className="actions">
+                  <span
+                    className="pill pill-ghost"
+                    style={{ color: "#b91c1c", borderColor: "#b91c1c" }}
+                  >
+                    {w.percent.toFixed(1)}%
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="panel">

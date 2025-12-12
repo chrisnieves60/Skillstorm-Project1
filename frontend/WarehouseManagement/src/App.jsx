@@ -3,40 +3,39 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import Dashboard from "./pages/Dashboard";
 import Inventory from "./pages/Inventory";
 import Warehouses from "./pages/Warehouses";
+import WarehouseDetails from "./pages/WarehouseDetails";
 import Layout from "./components/Layout";
 import Toast from "./components/Toast";
 import "./App.css";
+import { getWarehousesWithCapacity } from "./api/warehouses";
+import { getInventory } from "./api/inventory";
 
 function App() {
   const [warehouses, setWarehouses] = useState([]);
+  const [inventory, setInventory] = useState([]);
   const [toast, setToast] = useState(null);
 
+  const fetchWarehouses = async () => {
+    try {
+      const data = await getWarehousesWithCapacity();
+      setWarehouses(data);
+    } catch (error) {
+      console.error("Error fetching warehouses", error);
+    }
+  };
+
+  const fetchInventory = async () => {
+    try {
+      const data = await getInventory();
+      setInventory(data);
+    } catch (error) {
+      console.error("Error fetching inventory", error);
+    }
+  };
+
   useEffect(() => {
-    const fetchWarehouses = async () => {
-      try {
-        let URL = "http://localhost:8080";
-        const res = await fetch(`${URL}/warehouses`);
-        const warehouseList = await res.json();
-
-        const enriched = await Promise.all(
-          warehouseList.map(async (w) => {
-            const capRes = await fetch(`${URL}/warehouses/${w.id}/capacity`);
-            const capacity = await capRes.json(); //this is the int
-
-            return {
-              ...w, //copy of warehouse object
-              capacity: capacity, //inject capacity
-            };
-          })
-        );
-        console.log(enriched);
-        setWarehouses(enriched);
-      } catch (error) {
-        console.error("Error fetching warehouses", error);
-      }
-    };
-
     fetchWarehouses();
+    fetchInventory();
   }, []);
 
   const showToast = (message, tone = "info") => {
@@ -45,16 +44,46 @@ function App() {
     window.toastTimeout = window.setTimeout(() => setToast(null), 2600);
   };
 
-  // showToast("Inventory transferred", "success");
-  // return true;
-
   return (
     <Layout>
       {toast && <Toast message={toast.message} tone={toast.tone} />}
       <Routes>
         <Route path="/" element={<Dashboard warehouses={warehouses} />} />
-        <Route path="/warehouses" element={<Warehouses />} />
-        <Route path="/inventory" element={<Inventory />} />
+        <Route
+          path="/warehouses"
+          element={
+            <Warehouses //wamt to pass warehouses & setWarehouses so i can access and manipulate state in child. as well as fetchWarehouses.
+              warehouses={warehouses}
+              setWarehouses={setWarehouses}
+              fetchWarehouses={fetchWarehouses}
+              showToast={showToast}
+            />
+          }
+        />
+        <Route
+          path="/warehouses/:id"
+          element={
+            <WarehouseDetails
+              warehouses={warehouses}
+              inventory={inventory}
+              fetchInventory={fetchInventory}
+            />
+          }
+        />
+        <Route
+          path="/inventory"
+          element={
+            <Inventory
+              showToast={showToast}
+              inventory={inventory}
+              setInventory={setInventory}
+              fetchInventory={fetchInventory}
+              warehouses={warehouses}
+              setWarehouses={setWarehouses}
+              fetchWarehouses={fetchWarehouses}
+            />
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

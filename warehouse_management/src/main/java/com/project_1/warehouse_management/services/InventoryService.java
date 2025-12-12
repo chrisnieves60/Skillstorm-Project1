@@ -37,22 +37,34 @@ public class InventoryService {
         inventoryRepository.deleteById(id);
     }
     public Inventory createInventory(Inventory inventory, int warehouse_id) {
-        //BUSINESS LOGIC FOR CHECKING IF WAREHOUSE IS AT CAPACITY 
+
+        //Check if dup exists in the same warehouse
+        Inventory existing = inventoryRepository.findByWarehouse_IdAndSkuAndStorageLocation(warehouse_id, inventory.getSku(), inventory.getStorageLocation()); 
+
         Warehouse warehouse = warehouseRepository.findById(warehouse_id).orElseThrow(() -> new RuntimeException("Inventory not found")); 
 
         List<Inventory> inventoryItems = warehouse.getInventory(); //get inventory items as list from warehouse object 
-        
         int capacity = 0; 
-        
         for (Inventory item : inventoryItems) {
             int quantity = item.getQuantity(); 
             capacity+=quantity; 
         }
-
-        if (capacity + inventory.getQuantity() >= warehouse.getMaximumCapacity()) {
-            throw new RuntimeException("Warehouse is at or over capacity");
-
+        
+        //HANDLE DUPLICATE LOGIC
+        if (existing != null) {
+            //merge quantities
+            if (capacity + inventory.getQuantity() > warehouse.getMaximumCapacity()) {
+                throw new RuntimeException("Warehouse is at or over capacity");
+            }
+            existing.setQuantity(existing.getQuantity() + inventory.getQuantity()); 
+            return inventoryRepository.save(existing); 
         }
+
+       
+        if (capacity + inventory.getQuantity() > warehouse.getMaximumCapacity()) {
+            throw new RuntimeException("Warehouse is at or over capacity");
+        }
+
         inventory.setWarehouse(warehouse);
 
         return inventoryRepository.save(inventory); 

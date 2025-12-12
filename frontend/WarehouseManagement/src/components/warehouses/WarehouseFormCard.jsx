@@ -47,7 +47,7 @@ export default function WarehouseFormCard({
             placeholder="Max units"
           />
         </label>
-        {includeCapacity && (
+        {includeCapacity && ( //Conditional render, only shown when doing edit form.
           <label>
             Current used
             <input

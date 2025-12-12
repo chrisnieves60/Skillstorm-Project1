@@ -12,5 +12,5 @@ import com.project_1.warehouse_management.models.Inventory;
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, Integer>{ //JPARepo = crudrepo + paging/sorting + extras 
     Inventory findByWarehouse_IdAndSku(int warehouseId, String sku); //jpql where warehouse_id and sku = the parameters. 
-
+    Inventory findByWarehouse_IdAndSkuAndStorageLocation(int warehouseId, String sku, String storageLocation); 
 }

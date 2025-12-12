@@ -4,6 +4,16 @@ import InventoryFilters from "../components/inventory/InventoryFilters";
 import InventoryFormCard from "../components/inventory/InventoryFormCard";
 import InventoryTable from "../components/inventory/InventoryTable";
 import TransferModal from "../components/inventory/TransferModal";
+import {
+  createInventoryItem,
+  deleteInventoryItem,
+  getInventory,
+  getWarehouses,
+  toApiPayload,
+  toClientItem,
+  transferInventory,
+  updateInventoryItem,
+} from "../api/inventory";
 
 const emptyItem = {
   name: "",
@@ -14,52 +24,18 @@ const emptyItem = {
   warehouseId: "",
 };
 
-const emptyTransfer = {
-  open: false,
-  fromWarehouseId: 0,
-  toWarehouseId: 0,
-  inventoryId: 0,
-  quantity: 0,
-  storageLocation: "",
-};
-
-const apiBase = "http://localhost:8080";
 const PAGE_SIZE = 10;
 
-const toClientItem = (item) => ({
-  ...item,
-  warehouseId:
-    item.warehouseId ??
-    item.warehouse_id ??
-    (typeof item.warehouse === "object"
-      ? item.warehouse?.id
-      : item.warehouse) ??
-    "",
-});
-
-const toApiPayload = (item) => {
-  const { warehouseId, warehouse_id, warehouse, ...rest } = item;
-  const resolvedWarehouseId =
-    warehouseId ??
-    warehouse_id ??
-    (typeof warehouse === "object" ? warehouse?.id : warehouse) ??
-    "";
-  const payload = {
-    ...rest,
-    warehouseId: resolvedWarehouseId,
-    warehouse_id: resolvedWarehouseId,
-  };
-
-  if (resolvedWarehouseId) {
-    payload.warehouse = { id: resolvedWarehouseId };
-  }
-
-  return payload;
-};
-
-export default function Inventory() {
-  const [warehouses, setWarehouses] = useState([]);
-  const [items, setItems] = useState([]);
+export default function Inventory({
+  warehouses,
+  setWarehouses,
+  fetchWarehouses,
+  inventory,
+  setInventory,
+  fetchInventory,
+  showToast = () => {},
+}) {
+  const [items, setItems] = useState(inventory || []);
   const [filters, setFilters] = useState({
     search: "",
     warehouseId: "all",
@@ -67,34 +43,31 @@ export default function Inventory() {
   const [form, setForm] = useState(emptyItem);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState(emptyItem);
-  const [transfer, setTransfer] = useState(emptyTransfer);
   const [page, setPage] = useState(1);
+  const [transferModal, setTransferModal] = useState({
+    open: false,
+    item: null,
+    destination: "",
+    quantity: 1,
+    storageLocation: "",
+  });
 
   useEffect(() => {
-    const fetchWarehouses = async () => {
-      try {
-        const res = await fetch(`${apiBase}/warehouses`);
-        const data = await res.json();
-        setWarehouses(data);
-      } catch (error) {
-        console.error("Error fetching warehouses", error);
-      }
-    };
+    if (!warehouses || warehouses.length === 0) {
+      fetchWarehouses?.();
+    }
+    if (!inventory || inventory.length === 0) {
+      fetchInventory?.();
+    }
+  }, [fetchInventory, fetchWarehouses, inventory, warehouses]);
 
-    const fetchItems = async () => {
-      try {
-        const res = await fetch(`${apiBase}/inventory`);
-        const data = await res.json();
-        setItems(data.map(toClientItem));
-      } catch (error) {
-        console.error("Error fetching inventory", error);
-      }
-    };
+  useEffect(() => {
+    setItems(inventory || []);
+  }, [inventory]);
 
-    fetchWarehouses();
-    fetchItems();
-  }, []);
-
+  /**
+   * filter functionality for search/warehouse dropdown GRADE NOTE: (Didnt have time to complete this in the backend)
+   */
   const filteredItems = useMemo(() => {
     const search = filters.search.toLowerCase();
     return items.filter((item) => {
@@ -124,6 +97,9 @@ export default function Inventory() {
     page * PAGE_SIZE
   );
 
+  /**
+   * add functionality for new inventory item
+   */
   const handleAdd = (e) => {
     e.preventDefault();
     if (!form.name.trim() || !form.sku.trim() || !form.warehouseId) return;
@@ -135,34 +111,30 @@ export default function Inventory() {
 
     const createItem = async () => {
       try {
-        const res = await fetch(`${apiBase}/inventory`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        if (res.ok) {
-          const saved = await res.json();
-          setItems((prev) => [...prev, toClientItem({ ...payload, ...saved })]);
-        } else {
-          setItems((prev) => [...prev, toClientItem(payload)]);
-          console.warn("Falling back to local add; server returned non-OK");
-        }
+        const saved = await createInventoryItem(payload);
+        const newItem = toClientItem({ ...payload, ...saved });
+        setItems((prev) => [...prev, newItem]);
+        setInventory((prev) => [...prev, newItem]);
+        setForm(emptyItem);
       } catch (error) {
-        console.error("Error creating item, keeping local copy", error);
-        setItems((prev) => [...prev, toClientItem(payload)]);
+        console.error("Error creating item", error);
       }
     };
 
     createItem();
-    setForm(emptyItem);
   };
 
+  /**
+   * Starts editing by populating edit form
+   */
   const startEdit = (item) => {
     setEditingId(item.id);
     setEditForm({ ...item });
   };
 
+  /**
+   * update functionality for inventory items
+   */
   const handleUpdate = (e) => {
     e.preventDefault();
     if (!editingId) return;
@@ -174,25 +146,15 @@ export default function Inventory() {
 
     const updateItem = async () => {
       try {
-        const res = await fetch(`${apiBase}/inventory/${editingId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        const saved = await updateInventoryItem(editingId, payload);
 
-        const saved = res.ok ? await res.json() : null;
-
-        if (!res.ok) {
-          console.warn("Update call failed; applying optimistic update");
-        }
-
-        setItems((prev) =>
-          prev.map((item) =>
-            item.id === editingId
-              ? toClientItem({ ...item, ...payload, ...(saved || {}) })
-              : item
-          )
+        const updatedItems = items.map((item) =>
+          item.id === editingId
+            ? toClientItem({ ...item, ...payload, ...(saved || {}) })
+            : item
         );
+        setItems(updatedItems);
+        setInventory(updatedItems);
         setEditingId(null);
         setEditForm(emptyItem);
       } catch (error) {
@@ -203,6 +165,9 @@ export default function Inventory() {
     updateItem();
   };
 
+  /**
+   * delete functionality (with confirmation modal/alert)
+   */
   const handleDelete = (item) => {
     const confirmed = window.confirm(
       `Delete ${item.name}? This removes ${item.quantity} units from the system.`
@@ -210,14 +175,9 @@ export default function Inventory() {
     if (confirmed) {
       const deleteItem = async () => {
         try {
-          const res = await fetch(`${apiBase}/inventory/${item.id}`, {
-            method: "DELETE",
-          });
-          if (!res.ok) {
-            console.error("Failed to delete item");
-          } else {
-            setItems((prev) => prev.filter((i) => i.id !== item.id));
-          }
+          await deleteInventoryItem(item.id);
+          setItems((prev) => prev.filter((i) => i.id !== item.id));
+          setInventory((prev) => prev.filter((i) => i.id !== item.id));
         } catch (error) {
           console.error("Error deleting item", error);
         }
@@ -226,74 +186,52 @@ export default function Inventory() {
     }
   };
 
-  const openTransfer = (item) => {
-    const qty = Math.min(50, Number(item.quantity) || 0);
-    setTransfer({
+  /**
+   * prepares transfer modal with defaults
+   */
+  const handleTransferOpen = (item) => {
+    const firstDestination =
+      warehouses.find((w) => w.id !== item.warehouseId)?.id || "";
+    setTransferModal({
       open: true,
-      id: item.id,
-      quantity: qty,
-      destination:
-        warehouses.find((w) => w.id !== item.warehouseId)?.id || "",
+      item,
+      destination: firstDestination,
+      quantity: Math.min(Number(item.quantity) || 1, 1000),
+      storageLocation: "",
     });
   };
 
-  const submitTransfer = (e) => {
+  /**
+   * transfer functionality between warehouses
+   */
+  const handleTransferSubmit = async (e) => {
     e.preventDefault();
-    if (!transfer.id || !transfer.destination) return;
+    const { item, destination, quantity, storageLocation } = transferModal;
+    if (!item || !destination || destination === item.warehouseId) return;
+    const qty = Math.max(Number(quantity) || 0, 0);
+    if (qty <= 0) return;
 
-    const qtyToMove = Math.max(Number(transfer.quantity) || 0, 0);
-    if (qtyToMove === 0) return;
-
-    setItems((prev) => {
-      const source = prev.find((i) => i.id === transfer.id);
-      if (!source) return prev;
-
-      const remaining = Math.max((Number(source.quantity) || 0) - qtyToMove, 0);
-      const timestamped = new Date().toISOString();
-
-      const updated = prev
-        .map((i) =>
-          i.id === source.id
-            ? { ...i, quantity: remaining, lastMoved: timestamped }
-            : i
-        )
-        .filter((i) => !(i.id === source.id && remaining === 0));
-
-      const moved = {
-        ...source,
-        id: source.id === transfer.id ? `itm-${Date.now()}` : source.id,
-        warehouseId: transfer.destination,
-        quantity: qtyToMove,
-        lastMoved: timestamped,
-      };
-
-      return [...updated, moved];
-    });
-
-    const pushTransfer = async () => {
-      try {
-        const sourceWarehouseId = items.find((i) => i.id === transfer.id)
-          ?.warehouseId;
-        await fetch(`${apiBase}/warehouses/transfer`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            inventoryId: transfer.id,
-            fromWarehouseId: sourceWarehouseId,
-            toWarehouseId: transfer.destination,
-            quantity: qtyToMove,
-          }),
-        });
-      } catch (error) {
-        console.warn(
-          "Transfer endpoint unavailable; kept local state only",
-          error
-        );
-      }
-    };
-
-    pushTransfer();
-    setTransfer(emptyTransfer);
+    try {
+      await transferInventory({
+        inventoryId: item.id,
+        fromWarehouseId: item.warehouseId,
+        toWarehouseId: destination,
+        quantity: qty,
+        storageLocation,
+      });
+      await fetchInventory?.();
+      showToast("Inventory transferred", "success");
+    } catch (error) {
+      console.error("Error transferring inventory", error);
+    } finally {
+      setTransferModal({
+        open: false,
+        item: null,
+        destination: "",
+        quantity: 1,
+        storageLocation: "",
+      });
+    }
   };
 
   return (
@@ -301,12 +239,7 @@ export default function Inventory() {
       <section className="panel hero tight">
         <div>
           <p className="eyebrow">Inventory</p>
-          <h2>Move product without backend calls</h2>
-          <p className="muted">
-            Add, edit, delete, and transfer items while validating capacity and
-            duplicates in the browser. Use the filters to drill down by SKU , or
-            warehouse.
-          </p>
+          <h2>Manage Inventory</h2>
         </div>
         <InventoryFilters
           filters={filters}
@@ -325,20 +258,6 @@ export default function Inventory() {
           onSubmit={handleAdd}
           submitLabel="Add item"
         />
-
-        {editingId && (
-          <InventoryFormCard
-            eyebrow="Edit"
-            title="Update item"
-            form={editForm}
-            warehouses={warehouses}
-            onChange={setEditForm}
-            onSubmit={handleUpdate}
-            submitLabel="Save item"
-            accent
-            onCancel={() => setEditingId(null)}
-          />
-        )}
       </section>
 
       <section className="panel">
@@ -353,24 +272,64 @@ export default function Inventory() {
           items={paginatedItems}
           warehouses={warehouses}
           onEdit={startEdit}
-          onTransfer={openTransfer}
           onDelete={handleDelete}
+          onTransfer={handleTransferOpen}
+          renderFooter={() =>
+            filteredItems.length > 0 ? (
+              <Pagination
+                page={page}
+                pageCount={pageCount}
+                onChange={(num) => setPage(num)}
+              />
+            ) : null
+          }
+          renderInlineEdit={(item) =>
+            editingId === item.id ? (
+              <div className="panel form-card accent">
+                <InventoryFormCard
+                  eyebrow="Edit"
+                  title="Update item"
+                  form={editForm}
+                  warehouses={warehouses}
+                  onChange={setEditForm}
+                  onSubmit={handleUpdate}
+                  submitLabel="Save item"
+                  accent
+                  onCancel={() => setEditingId(null)}
+                  hideWarehouse
+                />
+              </div>
+            ) : null
+          }
         />
-        {filteredItems.length > 0 && (
-          <Pagination
-            page={page}
-            pageCount={pageCount}
-            onChange={(num) => setPage(num)}
-          />
-        )}
       </section>
 
       <TransferModal
-        transfer={transfer}
+        open={transferModal.open}
+        item={transferModal.item}
         warehouses={warehouses}
-        onClose={() => setTransfer(emptyTransfer)}
-        onChange={setTransfer}
-        onSubmit={submitTransfer}
+        destination={transferModal.destination}
+        quantity={transferModal.quantity}
+        storageLocation={transferModal.storageLocation}
+        onDestinationChange={(value) =>
+          setTransferModal((prev) => ({ ...prev, destination: value }))
+        }
+        onQuantityChange={(value) =>
+          setTransferModal((prev) => ({ ...prev, quantity: value }))
+        }
+        onStorageLocationChange={(value) =>
+          setTransferModal((prev) => ({ ...prev, storageLocation: value }))
+        }
+        onClose={() =>
+          setTransferModal({
+            open: false,
+            item: null,
+            destination: "",
+            quantity: 1,
+            storageLocation: "",
+          })
+        }
+        onSubmit={handleTransferSubmit}
       />
     </div>
   );

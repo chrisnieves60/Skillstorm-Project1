@@ -8,6 +8,7 @@ export default function InventoryFormCard({
   submitLabel,
   accent = false,
   onCancel,
+  hideWarehouse = false,
 }) {
   return (
     <form
@@ -54,27 +55,31 @@ export default function InventoryFormCard({
             placeholder="Aisle / bay"
           />
         </label>
-        <label>
-          Warehouse
-          <select
-            value={form.warehouseId}
-            onChange={(e) => onChange({ ...form, warehouseId: e.target.value })}
-            required
-          >
-            <option value="">Select warehouse</option>
-            {warehouses.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        {!hideWarehouse && (
+          <label>
+            Warehouse
+            <select
+              value={form.warehouseId}
+              onChange={(e) =>
+                onChange({ ...form, warehouseId: e.target.value })
+              }
+              required
+            >
+              <option value="">Select warehouse</option>
+              {warehouses.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="full">
           Description
           <textarea
             value={form.description}
             onChange={(e) => onChange({ ...form, description: e.target.value })}
-            placeholder="What makes this item special?"
+            placeholder="Describe this Item"
             rows={3}
           />
         </label>

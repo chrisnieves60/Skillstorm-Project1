@@ -1,11 +1,17 @@
 export default function TransferModal({
-  transfer,
+  open,
+  item,
   warehouses,
+  destination,
+  quantity,
+  storageLocation,
+  onDestinationChange,
+  onQuantityChange,
+  onStorageLocationChange,
   onClose,
-  onChange,
   onSubmit,
 }) {
-  if (!transfer.open) return null;
+  if (!open || !item) return null;
 
   return (
     <div className="modal">
@@ -17,21 +23,25 @@ export default function TransferModal({
               Close
             </button>
           </div>
+          <div className="muted" style={{ marginBottom: "8px" }}>
+            {item.name} (Qty: {item.quantity})
+          </div>
           <form className="form-grid" onSubmit={onSubmit}>
             <label>
               Destination warehouse
               <select
-                value={transfer.destination}
-                onChange={(e) =>
-                  onChange({ ...transfer, destination: e.target.value })
-                }
+                value={destination}
+                onChange={(e) => onDestinationChange(e.target.value)}
+                required
               >
                 <option value="">Select</option>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
+                {warehouses
+                  .filter((w) => w.id !== item.warehouseId)
+                  .map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
               </select>
             </label>
             <label>
@@ -39,10 +49,17 @@ export default function TransferModal({
               <input
                 type="number"
                 min="1"
-                value={transfer.quantity}
-                onChange={(e) =>
-                  onChange({ ...transfer, quantity: e.target.value })
-                }
+                value={quantity}
+                onChange={(e) => onQuantityChange(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              Storage location (destination)
+              <input
+                value={storageLocation}
+                onChange={(e) => onStorageLocationChange(e.target.value)}
+                placeholder="Aisle / bay"
               />
             </label>
             <div className="actions">

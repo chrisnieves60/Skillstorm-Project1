@@ -8,8 +8,8 @@ export default function Layout({ children, alerts = [] }) {
         <div className="brand">
           <div className="brand-mark">IMS</div>
           <div>
-            <p className="eyebrow">Atlas Control</p>
-            <h1>Inventory OS</h1>
+            <p className="eyebrow">Operations Dashboard</p>
+            <h1>Warehouse Manager</h1>
           </div>
         </div>
         <div className="top-actions">
@@ -17,9 +17,8 @@ export default function Layout({ children, alerts = [] }) {
             <span className="dot" />
             {alerts.length > 0
               ? `${alerts.length} capacity alert${alerts.length > 1 ? "s" : ""}`
-              : "All sites stable"}
+              : "Backend Online"}
           </div>
-          <div className="avatar">AD</div>
         </div>
       </header>
 
