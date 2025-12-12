@@ -1,4 +1,4 @@
-# Warehouse Management (kind of quick guide)
+# Warehouse Management (quick guide)
 
 A small warehouse + inventory tracker built with a Spring Boot backend and a React/Vite frontend. It keeps tabs on warehouses, capacity, inventory items, and transfers between sites.
 
@@ -19,7 +19,7 @@ A small warehouse + inventory tracker built with a Spring Boot backend and a Rea
 - Create/update/delete warehouses with max capacity, see current utilization.
 - Add inventory items, edit, delete, and transfer between warehouses.
 - Capacity guardrails in the UI and API so you don’t overfill a site.
-- Simple dashboard and detail views for quick peeks at stock.
+- Simple warehouse and detail views for quick peeks at stock.
 
 ## API quick peek
 
